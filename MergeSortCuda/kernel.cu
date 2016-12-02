@@ -113,7 +113,7 @@ void showArray(int *a, int l) {
 
 int main()
 {
-	int n = 3238665;
+	int n = 1000000000;
 	cout << "generate list" << endl;
 	cout << "length = " << n << endl;
 	int* list = generateRandomList(n);
