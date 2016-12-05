@@ -3,8 +3,11 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include <iostream>
+#include <stdlib.h>
+#include <time.h>
+#include <chrono>
 using namespace std;
-
+using namespace std::chrono;
 #define N 2  /* # of thread */
 
 void Print (const vector<int>& v){
@@ -28,7 +31,7 @@ vector<int> generateArray(int n) {
   return arr;
 }
 
-vector<int> a = generateArray(15);  /* target array */
+vector<int> a = generateArray(10000);  /* target array */
 //vector<int> a = {3,5,1};
 //int a[] = {15, 19, 1, 93, 6, 5, 12, 3, 2, 10};
 
@@ -92,7 +95,7 @@ void * mergesort(void *a)
 int main()
 {
   cout << "Init Array: " << endl;
-  Print(a);
+  //  Print(a);
   //  for (int i = 0; i < 10; i++) printf ("%d ", a[i]);
 
   ArrayIndex ai;
@@ -101,13 +104,21 @@ int main()
   ai.high = a.size() - 1;
   pthread_t thread;
 
+  duration<double> time_span = steady_clock::duration::zero();
+
+  high_resolution_clock::time_point st = high_resolution_clock::now();
   pthread_create(&thread, NULL, mergesort, &ai);
   pthread_join(thread, NULL);
+  time_span = high_resolution_clock::now() - st;
+
+  cout << "Time spent: " << time_span.count() << endl;
+
+
 
   cout << "\nSorted Array: " << endl;
   //for (int i = 0; i < 10; i++) printf ("%d ", a[i]);
 
-  Print(a);
+  //  Print(a);
   cout << endl;
 
   return 0;
