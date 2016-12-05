@@ -72,7 +72,7 @@ void BottomUpMergeSort(vector<int> &A, vector<int> &B, int n)
 
 
 int main() {
-  int n = 100000000;
+  int n = 1000000;
 
   vector<int> A = generateArray(n);
   vector<int> B(n);
