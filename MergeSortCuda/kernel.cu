@@ -1,22 +1,179 @@
 //cuda libs
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
-//windows libs
-#include <iostream>
-#include <time.h>
-#include <chrono>
-#include <limits>
-using namespace std;
-using namespace std::chrono;
-typedef std::numeric_limits< double > dbl;
-//define threads and block
+//local lib
+#include "Helper.h"
+#include "MergeSort.h"
+#include "MergeSortMultiThreading.h"
+//Number of threads per block
 #define THREADS_PER_BLOCK 512
 //compare 2 number, return the minimum
-__device__ int min_int(int a, int b) {
-	return (a < b) ? a : b;
+__device__ long min_int(long, long);
+//Bottom up merging implementation on gpu device
+//Merge 2 parts of array, [l, m) and [m, r)
+__device__ void merge_bottom_up(long*, long*, int, int, int);
+//This function is called by every thread
+//each thread will calculate its range from its id, and starting merge on that range
+__global__ void gpu_thread_merge(long*, long*, int, int);
+//GPU MERGE SORT ALGORITHM
+double gpuMergeSort(long*, int);
+//TIME ANALYTICS
+//Merge sort normal
+double mergeSortNormal(long*, int);
+//Merge sort multi-thread
+double mergeSortMT(long*, int);
+
+//every test case, do 5 times and get average time
+void analysis(int length) {
+
+	int n_times = 5;
+
+	double avg_time_1 = 0;
+	double avg_time_2 = 0;
+	double avg_time_3 = 0;
+
+	for (int i = 0; i < n_times; i++) {
+		//create sample
+		long* sample;
+		bool g = generateRandomList(length, sample);
+		if (!g)
+		{
+			cout << "Cannot create sample array!\n";
+			return;
+		}
+		//1 thread merge sort	
+		avg_time_1 += mergeSortNormal(sample, length);
+		//9 threads merge sort
+		avg_time_2 += mergeSortMT(sample, length);
+		//cuda merge sort
+		avg_time_3 += gpuMergeSort(sample, length);
+		//
+		free(sample);
+	}
+	avg_time_1 /= n_times;
+	avg_time_2 /= n_times;
+	avg_time_3 /= n_times;
+	//write log
+	cout.precision(dbl::max_digits10);
+	cout << length << "\t" << fixed << avg_time_1 << "\t" << fixed << avg_time_2 << "\t" << fixed << avg_time_3 << endl;
+	writeLog("result.txt", length, avg_time_1, avg_time_2, avg_time_3);
 }
 
-__device__ void merge_bottom_up(int* a, int* temp, int l, int m, int r) {
+void  main() {
+	srand(time(NULL));
+	//Sample size
+	int sample_size = 100;
+	//first test case
+	analysis(sample_size);
+	//29 remaining test case
+	for (int i = 1; i < 30; i++) {
+		sample_size += (sample_size / 2);//new test case input is larger than old one 50%
+		analysis(sample_size);
+	}
+	//int n = 15;
+	//long* list;
+	//bool g = generateRandomList(n, list);
+	////if created list
+	//if (g) {
+	//	showArray(list, n);
+	//	//
+	//	mergeSortNormal(list, n);
+	//	//
+	//	showArray(list, n);
+	//}
+	////free memory
+	//free(list);
+	////
+	cout << endl;
+	system("pause");
+}
+
+//OTHER MERGE SORT IMPLEMENTATION
+//Merge sort normal
+double mergeSortNormal(long* a, int length) {
+	//create temp list
+	long *temp = (long*)malloc(sizeof(long) * length);
+	//
+	high_resolution_clock::time_point watch = high_resolution_clock::now();
+	BottomUpMergeSort(a, temp, 0, length);
+	duration<double> time_span = (high_resolution_clock::now() - watch);
+	//free temp
+	free(temp);
+	//return execution time
+	return time_span.count();
+}
+
+//Merge sort multi-thread
+double mergeSortMT(long* a, int length) {
+	//create temp list
+	long *temp = (long*)malloc(sizeof(long) * length);
+	//
+	high_resolution_clock::time_point watch = high_resolution_clock::now();
+	MultiThreadingMergeSort(a, temp, length);
+	duration<double> time_span = (high_resolution_clock::now() - watch);
+	//free temp
+	free(temp);
+	//return execution time
+	return time_span.count();
+}
+//CUDA MERGE SORT - IMPLEMENTATION
+//This function prepair gpu memory and call kernel function
+double gpuMergeSort(long *a, int n) {
+
+	//device array pointers
+	long *dev_working;
+	long *dev_temp;
+
+	//Allocation gpu memory
+	cudaMalloc((void**)&dev_temp, sizeof(int) * n);
+	cudaMalloc((void**)&dev_working, sizeof(int) * n);
+
+	//Copy local array to gpu-memory
+	//This line waste a lot of time,
+	//algorithm do very quickly but memory copy host-to-device, device-to-host lightly slow.
+	cudaMemcpy(dev_working, a, sizeof(int) * n, cudaMemcpyHostToDevice);
+
+	//
+	int width;
+
+	//Temporary array
+	long* A = dev_working;
+	long* B = dev_temp;
+
+	//Clock for watching time
+	high_resolution_clock::time_point watch = high_resolution_clock::now();
+	//Split array to ranges, each range has length equal to width
+	//width is multiplied by 2
+	for (width = 1; width < n; width *= 2) {
+		//number of threads need to use
+		int n_threads_need = n / width;
+		//number of blocks from n_threads_need
+		int n_blocks = (n_threads_need + (THREADS_PER_BLOCK - 1)) / (THREADS_PER_BLOCK);
+		//call kernel
+		gpu_thread_merge <<<n_blocks, THREADS_PER_BLOCK >>>(A, B, n, width);
+		//swap array
+		A = A == dev_working ? dev_temp : dev_working;
+		B = B == dev_working ? dev_temp : dev_working;
+	}
+
+	//stop clock
+	duration<double> time_span = (high_resolution_clock::now() - watch);
+
+	//Copy result to local memory
+	//This line waste alot of time,
+	//algorithm is very quick but memory copy host-to-device, device-to-host lightly slow.
+	cudaMemcpy(a, A, sizeof(int) * n, cudaMemcpyDeviceToHost);
+	//Free gpu memory
+	cudaFree(dev_temp);
+	cudaFree(dev_working);
+	//Return execution time of merge sort
+	//
+	return time_span.count();
+}
+
+//Bottom up merging implementation on gpu device
+//Merge 2 parts of array, [l, m) and [m, r)
+__device__ void merge_bottom_up(long* a, long* temp, int l, int m, int r) {
 	int i = l, j = m;
 	// While there are elements in the left or right runs...
 	for (int k = l; k < r; k++) {
@@ -32,7 +189,9 @@ __device__ void merge_bottom_up(int* a, int* temp, int l, int m, int r) {
 	}
 }
 
-__global__ void gpu_thread_merge(int* a, int* temp, int n, int width)
+//This function is called by every thread
+//each thread will calculate its range from its id, and starting merge on that range
+__global__ void gpu_thread_merge(long* a, long* temp, int n, int width)
 {
 	//id of thread
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -49,80 +208,8 @@ __global__ void gpu_thread_merge(int* a, int* temp, int n, int width)
 	merge_bottom_up(a, temp, left, mid, right);
 }
 
-double cxtime;
-
-void mergeSort(int *a, int n) {
-
-	//slice array to pieces and each has own width
-	int *dev_temp;
-	int *dev_working;
-	//prepare memory
-	cudaMalloc((void**)&dev_temp, sizeof(int) * n);
-	cudaMalloc((void**)&dev_working, sizeof(int) * n);
-	//copy array to gpu-memory
-	cudaMemcpy(dev_working, a, sizeof(int) * n, cudaMemcpyHostToDevice);
-	//
-	int width;
-	//
-	int* tmp_T = dev_temp;
-	int* tmp_W = dev_working;
-
-	//merge
-	high_resolution_clock::time_point watch = high_resolution_clock::now();
-	//
-	for (width = 1; width < n; width *= 2) {
-		//number of threads need to use
-		int n_threads_need = n / width;
-		//number of blocks from n_threads_need
-		int n_blocks = (n_threads_need + (THREADS_PER_BLOCK - 1)) / (THREADS_PER_BLOCK);
-		//call kernel
-		gpu_thread_merge<<<n_blocks, THREADS_PER_BLOCK>>>(tmp_W, tmp_T, n, width);
-		//swap
-		tmp_W = tmp_W == dev_working ? dev_temp : dev_working;
-		tmp_T = tmp_T == dev_working ? dev_temp : dev_working;
-	}
-
-	duration<double> time_span = (high_resolution_clock::now() - watch);
-	cxtime = time_span.count();
-	//free(a);
-	//(int*)a =(int*) malloc(sizeof(int) * n);
-	cudaMemcpy(a, dev_working, sizeof(int) * n, cudaMemcpyDeviceToHost);
-	//
-	cudaFree(dev_temp);
-	cudaFree(dev_working);
-}
-
-//Generate sorted list with length given
-int* generateRandomList(int length) {
-	//
-	srand(time(NULL));
-	int* list = (int*) malloc(sizeof(int)*length);
-
-	for (int i = 0; i < length; i++)	
-		list[i] = rand() % length;
-	
-	return list;
-}
-
-void showArray(int *a, int l) {
-	for (int i = 0; i < l; i++) {
-		cout << a[i] << "  ";
-	}
-	cout << endl;
-}
-
-int main()
-{
-	int n = 1000000000;
-	cout << "generate list" << endl;
-	cout << "length = " << n << endl;
-	int* list = generateRandomList(n);
-	cout << "start algorithm" << endl;
-	mergeSort(list, n);
-	//Measure time
-	cout.precision(dbl::max_digits10);
-	cout << "time: " << "\t" << fixed << cxtime << endl;
-	cout << endl;
-	system("pause");
-    return 0;
+//Compare 2 number, return the minimum
+//This funcion running on gpu device
+__device__ long min_int(long a, long b) {
+	return (a < b) ? a : b;
 }
