@@ -8,7 +8,7 @@ bool generateRandomList(int length, long*& list) {
 		return false;
 
 	for (int i = 0; i < length; i++)	
-		list[i] = rand() % length;
+		list[i] = rand() ;
 	
 	return true;
 }

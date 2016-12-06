@@ -11,22 +11,22 @@
 __device__ long min_int(long, long);
 //Bottom up merging implementation on gpu device
 //Merge 2 parts of array, [l, m) and [m, r)
-__device__ void merge_bottom_up(long*, long*, int, int, int);
+__device__ void merge_bottom_up(long*, long*, long, long, long);
 //This function is called by every thread
 //each thread will calculate its range from its id, and starting merge on that range
-__global__ void gpu_thread_merge(long*, long*, int, int);
+__global__ void gpu_thread_merge(long*, long*, long, long);
 //GPU MERGE SORT ALGORITHM
-double gpuMergeSort(long*, int);
+double gpuMergeSort(long*, long);
 //TIME ANALYTICS
 //Merge sort normal
-double mergeSortNormal(long*, int);
+double mergeSortNormal(long*, long);
 //Merge sort multi-thread
-double mergeSortMT(long*, int);
+double mergeSortMT(long*, long);
 
 //every test case, do 5 times and get average time
 void analysis(int length) {
 
-	int n_times = 5;
+	int n_times = 1;
 
 	double avg_time_1 = 0;
 	double avg_time_2 = 0;
@@ -62,35 +62,21 @@ void analysis(int length) {
 void  main() {
 	srand(time(NULL));
 	//Sample size
-	int sample_size = 100;
+	long sample_size = 100;
 	//first test case
 	analysis(sample_size);
-	//29 remaining test case
-	for (int i = 1; i < 30; i++) {
+	//22 remaining test case
+	for (int i = 1; i < 23; i++) {
 		sample_size += (sample_size / 2);//new test case input is larger than old one 50%
 		analysis(sample_size);
 	}
-	//int n = 15;
-	//long* list;
-	//bool g = generateRandomList(n, list);
-	////if created list
-	//if (g) {
-	//	showArray(list, n);
-	//	//
-	//	mergeSortNormal(list, n);
-	//	//
-	//	showArray(list, n);
-	//}
-	////free memory
-	//free(list);
-	////
 	cout << endl;
 	system("pause");
 }
 
 //OTHER MERGE SORT IMPLEMENTATION
 //Merge sort normal
-double mergeSortNormal(long* a, int length) {
+double mergeSortNormal(long* a, long length) {
 	//create temp list
 	long *temp = (long*)malloc(sizeof(long) * length);
 	//
@@ -104,7 +90,7 @@ double mergeSortNormal(long* a, int length) {
 }
 
 //Merge sort multi-thread
-double mergeSortMT(long* a, int length) {
+double mergeSortMT(long* a, long length) {
 	//create temp list
 	long *temp = (long*)malloc(sizeof(long) * length);
 	//
@@ -118,20 +104,20 @@ double mergeSortMT(long* a, int length) {
 }
 //CUDA MERGE SORT - IMPLEMENTATION
 //This function prepair gpu memory and call kernel function
-double gpuMergeSort(long *a, int n) {
+double gpuMergeSort(long *a, long n) {
 
 	//device array pointers
 	long *dev_working;
 	long *dev_temp;
 
 	//Allocation gpu memory
-	cudaMalloc((void**)&dev_temp, sizeof(int) * n);
-	cudaMalloc((void**)&dev_working, sizeof(int) * n);
+	cudaMalloc((void**)&dev_temp, sizeof(long) * n);
+	cudaMalloc((void**)&dev_working, sizeof(long) * n);
 
 	//Copy local array to gpu-memory
 	//This line waste a lot of time,
 	//algorithm do very quickly but memory copy host-to-device, device-to-host lightly slow.
-	cudaMemcpy(dev_working, a, sizeof(int) * n, cudaMemcpyHostToDevice);
+	cudaMemcpy(dev_working, a, sizeof(long) * n, cudaMemcpyHostToDevice);
 
 	//
 	int width;
@@ -141,28 +127,35 @@ double gpuMergeSort(long *a, int n) {
 	long* B = dev_temp;
 
 	//Clock for watching time
+	
 	high_resolution_clock::time_point watch = high_resolution_clock::now();
+	cudaError_t err;
 	//Split array to ranges, each range has length equal to width
 	//width is multiplied by 2
 	for (width = 1; width < n; width *= 2) {
 		//number of threads need to use
-		int n_threads_need = n / width;
+		long n_threads_need = n / width;
 		//number of blocks from n_threads_need
-		int n_blocks = (n_threads_need + (THREADS_PER_BLOCK - 1)) / (THREADS_PER_BLOCK);
+		long n_blocks = (n_threads_need + (THREADS_PER_BLOCK - 1)) / (THREADS_PER_BLOCK);
 		//call kernel
 		gpu_thread_merge <<<n_blocks, THREADS_PER_BLOCK >>>(A, B, n, width);
+		cudaDeviceSynchronize();
+
+		err = cudaGetLastError();
+		if (err != cudaSuccess)
+			cout << n << " meet e: " << cudaGetErrorString(err) << endl;
+
 		//swap array
 		A = A == dev_working ? dev_temp : dev_working;
 		B = B == dev_working ? dev_temp : dev_working;
 	}
-
 	//stop clock
 	duration<double> time_span = (high_resolution_clock::now() - watch);
 
 	//Copy result to local memory
 	//This line waste alot of time,
 	//algorithm is very quick but memory copy host-to-device, device-to-host lightly slow.
-	cudaMemcpy(a, A, sizeof(int) * n, cudaMemcpyDeviceToHost);
+	cudaMemcpy(a, A, sizeof(long) * n, cudaMemcpyDeviceToHost);
 	//Free gpu memory
 	cudaFree(dev_temp);
 	cudaFree(dev_working);
@@ -173,7 +166,7 @@ double gpuMergeSort(long *a, int n) {
 
 //Bottom up merging implementation on gpu device
 //Merge 2 parts of array, [l, m) and [m, r)
-__device__ void merge_bottom_up(long* a, long* temp, int l, int m, int r) {
+__device__ void merge_bottom_up(long* a, long* temp, long l, long m, long r) {
 	int i = l, j = m;
 	// While there are elements in the left or right runs...
 	for (int k = l; k < r; k++) {
@@ -191,19 +184,19 @@ __device__ void merge_bottom_up(long* a, long* temp, int l, int m, int r) {
 
 //This function is called by every thread
 //each thread will calculate its range from its id, and starting merge on that range
-__global__ void gpu_thread_merge(long* a, long* temp, int n, int width)
+__global__ void gpu_thread_merge(long* a, long* temp, long n, long width)
 {
 	//id of thread
-	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+	long idx = blockIdx.x * blockDim.x + threadIdx.x;
 	//define working range of thread
 	//range begining
-	int i = idx * 2 * width;
+	long i = idx * 2 * width;
 	if (i >= n)
 		return;
 	//range detail
-	int left = i;
-	int mid = min_int(n, i + width);
-	int right = min_int(n, i + 2 * width);
+	long left = i;
+	long mid = min_int(n, i + width);
+	long right = min_int(n, i + 2 * width);
 	//Do bottom up merge
 	merge_bottom_up(a, temp, left, mid, right);
 }

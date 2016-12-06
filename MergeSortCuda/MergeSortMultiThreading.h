@@ -8,9 +8,9 @@ using namespace std;
 #define THREADS 8
 //Job struct for each thread
 struct JOB {
-	int from;
-	int to;
-	JOB(int _from, int _to) {
+	long from;
+	long to;
+	JOB(long _from, long _to) {
 		from = _from;
 		to = _to;
 	}
@@ -22,4 +22,4 @@ typedef vector<JOB> Jobs;
 //Merge result from threads
 Jobs mergeSubArray(Jobs, long*, long*);
 //Multi threads merge sort
-void MultiThreadingMergeSort(long*, long*, int);
+void MultiThreadingMergeSort(long*, long*, long);

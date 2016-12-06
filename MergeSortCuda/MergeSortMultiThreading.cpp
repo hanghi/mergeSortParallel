@@ -19,11 +19,11 @@ Jobs mergeSubArray(Jobs input, long* a, long* temp) {
 }
 
 //Multi threads merge sort
-void MultiThreadingMergeSort(long* a, long* temp, int n) {
+void MultiThreadingMergeSort(long* a, long* temp, long n) {
 	//Get length of job which is given to thread
-	int n_l_jobs = n / THREADS;
+	long n_l_jobs = n / THREADS;
 	//Last thread will do this remain job
-	int n_l_j_remain = n % THREADS; 
+	long n_l_j_remain = n % THREADS;
 	//List of jobs
 	Jobs l_jobs;
 	//List of threads
@@ -32,13 +32,13 @@ void MultiThreadingMergeSort(long* a, long* temp, int n) {
 	//Delivery jobs to threads	
 	for (int i = 0; i < THREADS; i++) {
 		//get current job
-		int current_jobs = n_l_jobs;
+		long current_jobs = n_l_jobs;
 		if (i == THREADS - 1) //if it's last thread, give it remain job
 			current_jobs += n_l_j_remain;
 
 		//where job is on array, calculate range of job
-		int from = i * n_l_jobs;
-		int to = from + current_jobs;
+		long from = i * n_l_jobs;
+		long to = from + current_jobs;
 		//New thread will sort on that range
 		thread t(BottomUpMergeSort, a, temp, from, to);
 		//Add to thread list
