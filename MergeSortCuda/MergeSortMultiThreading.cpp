@@ -1,7 +1,7 @@
 #include "MergeSortMultiThreading.h"
 
 //Merge result from threads
-Jobs mergeSubArray(Jobs input, long* a, long* temp) {
+Jobs mergeSubArray(Jobs input, int* a, int* temp) {
 	Jobs ret;
 	//Each round merge 2 job
 	//Merge 0 vs 1, 2 vs 3, 4 vs 5, ....
@@ -19,7 +19,7 @@ Jobs mergeSubArray(Jobs input, long* a, long* temp) {
 }
 
 //Multi threads merge sort
-void MultiThreadingMergeSort(long* a, long* temp, long n) {
+void MultiThreadingMergeSort(int* a, int* temp, long n) {
 	//Get length of job which is given to thread
 	long n_l_jobs = n / THREADS;
 	//Last thread will do this remain job

@@ -1,6 +1,6 @@
 #include "MergeSort.h"
 //Copy a part of array B to A
-void CopyArray(long* B, long* A, int l, int r)
+void CopyArray(int* B, int* A, long l, long r)
 {
 	for (int i = l; i < r; i++)
 		A[i] = B[i];
@@ -17,7 +17,7 @@ void SwapArray(long* A, long* B) {
 }
 
 //Merge 2 parts of array A (left and right), result save to array B. Split by mid.
-void BottomUpMerge(long* A, long* B, int left, int mid, int right)
+void BottomUpMerge(int* A, int* B, long left, long mid, long right)
 {
 	int i = left; int j = mid;
 	// While there are elements in the left or right runs...
@@ -36,7 +36,7 @@ void BottomUpMerge(long* A, long* B, int left, int mid, int right)
 
 //Array A[] has the items to sort; array B[] is a temporary array
 //This function can sort a part of array, start from left and end at right.
-void BottomUpMergeSort(long* A, long* B, int l, int r)
+void BottomUpMergeSort(int* A, int* B, long l, long r)
 {
 	int n = r - l;
 	// Each 1-element run in A is already "sorted".

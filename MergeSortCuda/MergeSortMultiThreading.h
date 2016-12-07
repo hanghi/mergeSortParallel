@@ -20,6 +20,6 @@ typedef vector<thread> T;
 typedef vector<JOB> Jobs;
 //---------------------------------------Implementation
 //Merge result from threads
-Jobs mergeSubArray(Jobs, long*, long*);
+Jobs mergeSubArray(Jobs, int*, int*);
 //Multi threads merge sort
-void MultiThreadingMergeSort(long*, long*, long);
+void MultiThreadingMergeSort(int*, int*, long);
